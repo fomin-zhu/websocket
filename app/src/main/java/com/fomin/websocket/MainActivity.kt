@@ -14,71 +14,51 @@ import okio.ByteString
 import kotlin.concurrent.thread
 
 
-class MainActivity : AppCompatActivity() {
-    private val TAG = MainActivity::class.java.simpleName
-    private lateinit var mockWebServer: MockWebServer
+class MainActivity : AppCompatActivity(), IReceiveMessage {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        initMock()
         btn_connect.setOnClickListener {
-            initSocket()
-        }
-    }
-
-    private fun initMock() {
-        mockWebServer = MockWebServer()
-        mockWebServer.enqueue(MockResponse().withWebSocketUpgrade(object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket?, response: Response?) {
-                super.onOpen(webSocket, response)
-                Log.d(TAG, "onOpen:" + response!!.message())
-            }
-
-            override fun onMessage(webSocket: WebSocket?, text: String?) {
-                super.onMessage(webSocket, text)
-                Log.d(TAG, "onMessage:" + text!!)
-            }
-
-            override fun onMessage(webSocket: WebSocket?, bytes: ByteString?) {
-                super.onMessage(webSocket, bytes)
-                Log.d(TAG, "onMessage:" + bytes!!.base64())
-            }
-
-            override fun onClosing(webSocket: WebSocket?, code: Int, reason: String?) {
-                super.onClosing(webSocket, code, reason)
-                Log.d(TAG, "onClosing:" + reason!!)
-            }
-
-            override fun onClosed(webSocket: WebSocket?, code: Int, reason: String?) {
-                super.onClosed(webSocket, code, reason)
-                Log.d(TAG, "onClosed:" + reason!!)
-            }
-
-            override fun onFailure(webSocket: WebSocket?, t: Throwable?, response: Response?) {
-                super.onFailure(webSocket, t, response)
-                Log.d(TAG, "onFailure:" + response!!.message())
-            }
-        }))
-    }
-
-    private fun initSocket() {
-        thread {
-            kotlin.run {
-                val hostName = mockWebServer.hostName
-                val port = mockWebServer.port
-                val url = "ws://$hostName:$port/"
-                Log.d(TAG, "mockWebServer:$url")
-                WebSocketManager.getInstance().init(url, createReceive())
-                runOnUiThread {
-                    et_content.text = Editable.Factory.getInstance().newEditable("开始连接:$url")
+            thread {
+                kotlin.run {
+                    WebSocketManager.getInstance().init("", this)
                 }
             }
         }
+        btn_client_send.setOnClickListener {
+            if (WebSocketManager.getInstance().sendMessage("客户端发送")) {
+                addText("客户端发送")
+            }
+        }
+        btn_client_close.setOnClickListener {
+            WebSocketManager.getInstance().close()
+        }
     }
 
-    private fun createReceive(): IReceiveMessage {
-        return IReceiveMessage {
-            Log.d(TAG, "receive:$it")
+    override fun onConnectSuccess() {
+        addText("连接成功\n")
+    }
+
+    override fun onConnectFailed() {
+        addText("连接失败\n")
+    }
+
+    override fun onClose() {
+        addText("关闭成功\n")
+    }
+
+    override fun onMessage(text: String?) {
+        addText("接收消息：$text\n")
+    }
+
+    private fun addText(text: String?) {
+        runOnUiThread {
+            et_content.text.append(text)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        WebSocketManager.getInstance().close()
     }
 }

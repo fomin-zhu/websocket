@@ -4,6 +4,8 @@ import android.util.Log;
 import okhttp3.*;
 import okio.ByteString;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * Created by Fomin on 2019/1/5.
  */
@@ -37,6 +39,9 @@ public final class WebSocketManager {
 
     public void init(String url, IReceiveMessage message) {
         client = new OkHttpClient.Builder()
+                .writeTimeout(5, TimeUnit.SECONDS)
+                .readTimeout(5, TimeUnit.SECONDS)
+                .connectTimeout(10, TimeUnit.SECONDS)
                 .build();
         request = new Request.Builder().url(url).build();
         receiveMessage = message;
@@ -115,12 +120,16 @@ public final class WebSocketManager {
             @Override
             public void onOpen(WebSocket webSocket, Response response) {
                 super.onOpen(webSocket, response);
+                Log.d(TAG, "open:" + response.toString());
                 mWebSocket = webSocket;
-                isConnect = response.code() == 200;
+                isConnect = response.code() == 101;
                 if (!isConnect) {
                     reconnect();
                 } else {
                     Log.i(TAG, "connect success.");
+                    if (receiveMessage != null) {
+                        receiveMessage.onConnectSuccess();
+                    }
                 }
             }
 
@@ -145,6 +154,9 @@ public final class WebSocketManager {
                 super.onClosing(webSocket, code, reason);
                 mWebSocket = null;
                 isConnect = false;
+                if (receiveMessage != null) {
+                    receiveMessage.onClose();
+                }
             }
 
             @Override
@@ -152,6 +164,9 @@ public final class WebSocketManager {
                 super.onClosed(webSocket, code, reason);
                 mWebSocket = null;
                 isConnect = false;
+                if (receiveMessage != null) {
+                    receiveMessage.onClose();
+                }
             }
 
             @Override
@@ -162,6 +177,9 @@ public final class WebSocketManager {
                 }
                 Log.i(TAG, "connect failed throwable：" + t.getMessage());
                 isConnect = false;
+                if (receiveMessage != null) {
+                    receiveMessage.onConnectFailed();
+                }
                 reconnect();
             }
         };
